@@ -1,4 +1,4 @@
-﻿using BattleBitAPI.Common;
+using BattleBitAPI.Common;
 using BattleBitAPI.Server;
 using System.Diagnostics;
 

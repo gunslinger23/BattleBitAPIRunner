@@ -1,18 +1,13 @@
-﻿using BBRAPIModules;
+using BBRAPIModules;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 
 namespace BattleBitAPIRunner
 {
@@ -21,6 +16,7 @@ namespace BattleBitAPIRunner
         private static List<Module> modules = new();
         public static IReadOnlyList<Module> Modules => modules;
         private static AssemblyLoadContext moduleContext = new AssemblyLoadContext("Modules", true);
+        private static Type[] allowTypes = { typeof(BattleBitModule), typeof(APIModule) };
 
         public AssemblyLoadContext? Context { get; private set; }
         public Type? ModuleType { get; private set; }
@@ -90,11 +86,11 @@ namespace BattleBitAPIRunner
         {
             IEnumerable<ClassDeclarationSyntax> classDeclarationSyntaxes = syntaxTree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>();
             IEnumerable<ClassDeclarationSyntax> publicClassDeclarationSyntaxes = classDeclarationSyntaxes.Where(x => x.Modifiers.Any(x => x.ToString() == "public"));
-            IEnumerable<ClassDeclarationSyntax> moduleClassDeclarationSyntaxes = publicClassDeclarationSyntaxes.Where(x => x.BaseList?.Types.Any(x => x.Type.ToString() == nameof(BattleBitModule)) ?? false);
+            IEnumerable<ClassDeclarationSyntax> moduleClassDeclarationSyntaxes = publicClassDeclarationSyntaxes.Where(x => x.BaseList?.Types.Any(x => allowTypes.Any(y => y.Name == x.Type.ToString())) ?? false);
 
             if (moduleClassDeclarationSyntaxes.Count() != 1)
             {
-                throw new Exception($"Module {Path.GetFileName(ModuleFilePath)} does not contain a class that inherits from {nameof(BattleBitModule)}");
+                throw new Exception($"Module {Path.GetFileName(ModuleFilePath)} does not contain a class that inherits from {string.Join(',', allowTypes.Select(t => t.Name))}");
             }
 
             return moduleClassDeclarationSyntaxes.First().Identifier.ToString();
@@ -121,10 +117,10 @@ namespace BattleBitAPIRunner
             }
 
             // TODO: may be redundant to the checks in getModuleName() (but better safe than sorry?)
-            IEnumerable<Type> moduleTypes = this.ModuleAssembly.GetTypes().Where(x => x.IsSubclassOf(typeof(BattleBitModule)));
+            IEnumerable<Type> moduleTypes = this.ModuleAssembly.GetTypes().Where(x => allowTypes.Any(x.IsSubclassOf));
             if (moduleTypes.Count() != 1)
             {
-                throw new Exception($"Module {this.Name} does not contain a class that inherits from {nameof(BattleBitModule)}");
+                throw new Exception($"Module {this.Name} does not contain a class that inherits from {string.Join(',', allowTypes.Select(t => t.Name))}");
             }
 
             this.ModuleType = moduleTypes.First();

@@ -1,4 +1,4 @@
-﻿using BattleBitAPI;
+using BattleBitAPI;
 
 namespace BBRAPIModules
 {

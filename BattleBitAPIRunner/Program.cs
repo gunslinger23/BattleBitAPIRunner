@@ -1,7 +1,6 @@
-﻿using BattleBitAPI.Common;
+using BattleBitAPI.Common;
 using BattleBitAPI.Server;
 using BBRAPIModules;
-using Microsoft.CodeAnalysis.Operations;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using System.ComponentModel.DataAnnotations;
@@ -10,7 +9,6 @@ using System.Net;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
-using System.Xml.Linq;
 
 namespace BattleBitAPIRunner
 {
@@ -25,6 +23,9 @@ namespace BattleBitAPIRunner
         private List<RunnerServer> servers = new();
         private ServerListener<RunnerPlayer, RunnerServer> serverListener = new();
         private Dictionary<string, (string Hash, DateTime LastModified)> watchedFiles = new();
+
+        private List<APIModule> apiModules = new();
+        private ConsoleCommandHandler moduleConsoleHandler = new();
 
         public Program()
         {
@@ -206,6 +207,7 @@ namespace BattleBitAPIRunner
                         loadModules();
                         break;
                     default:
+                        moduleConsoleHandler.HandleConsoleCommand(command);
                         break;
                 }
             }
@@ -234,6 +236,14 @@ namespace BattleBitAPIRunner
                 }
             }
 
+            foreach (APIModule module in apiModules)
+            {
+                module.OnModuleUnloading();
+                moduleConsoleHandler.UnRegisterCommands(module);
+                module.Unload();
+            }
+
+            apiModules.Clear();
             Module.UnloadContext();
         }
 
@@ -308,6 +318,8 @@ namespace BattleBitAPIRunner
                     }
 
                     module.Load();
+
+                    loadAPIModule(module);
                 }
                 catch (Exception ex)
                 {
@@ -319,7 +331,7 @@ namespace BattleBitAPIRunner
                 }
 
                 Console.ForegroundColor = ConsoleColor.Green;
-                Console.Write($"Loaded module ");
+                Console.Write("Loaded module ");
                 Console.ResetColor();
                 Console.WriteLine(module.Name);
             }
@@ -334,6 +346,33 @@ namespace BattleBitAPIRunner
             }
         }
 
+        private void loadAPIModule(Module module)
+        {
+            if (!(module.ModuleType?.IsSubclassOf(typeof(APIModule)) ?? false)) return;
+            APIModule moduleInstance;
+            try
+            {
+                moduleInstance = Activator.CreateInstance(module.ModuleType) as APIModule;
+                if (moduleInstance is null)
+                {
+                    throw new Exception($"Not inheriting from {nameof(APIModule)}");
+                }
+                moduleInstance.SetServers(this.servers);
+                apiModules.Add(moduleInstance);
+
+                // Register command
+                moduleConsoleHandler.RegisterCommands(moduleInstance);
+                moduleInstance.OnModulesLoaded();
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Failed to load module {module.Name}:");
+                Console.ResetColor();
+                Console.WriteLine(ex.ToString());
+            }
+        }
+
         private void hookModules()
         {
             this.serverListener.OnCreatingGameServerInstance = initializeGameServer;
@@ -344,6 +383,7 @@ namespace BattleBitAPIRunner
             this.servers.Add(server);
 
             loadServerModules(server, ip, port);
+            apiModules.ForEach(module => module.OnCreatingGameServerInstance(server));
 
             return server;
         }
@@ -354,6 +394,7 @@ namespace BattleBitAPIRunner
 
             foreach (Module module in Module.Modules)
             {
+                if (!(module.ModuleType?.IsSubclassOf(typeof(BattleBitModule)) ?? false)) continue;
                 BattleBitModule moduleInstance;
                 try
                 {

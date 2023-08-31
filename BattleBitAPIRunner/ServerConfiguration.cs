@@ -1,4 +1,4 @@
-﻿using BattleBitAPI.Common;
+using BattleBitAPI.Common;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
