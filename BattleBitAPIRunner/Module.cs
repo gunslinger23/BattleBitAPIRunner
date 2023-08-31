@@ -171,7 +171,7 @@ namespace BattleBitAPIRunner
                 {
                     var errors = result.Diagnostics
                         .Where(diagnostic => diagnostic.IsWarningAsError || diagnostic.Severity == DiagnosticSeverity.Error)
-                        .Select(diagnostic => $"{diagnostic.Id}: {diagnostic.GetMessage()}")
+                        .Select(diagnostic => $"{diagnostic}")
                         .ToList();
 
                     throw new Exception(string.Join(Environment.NewLine, errors));
